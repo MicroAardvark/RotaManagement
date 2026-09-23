@@ -3,19 +3,25 @@ import 'package:intl/intl.dart';
 import '../models/client_model.dart';
 import '../models/employee_model.dart';
 import '../models/job_type_model.dart';
+import '../models/shift_model.dart';
 import '../services/api_service.dart';
 
-/// Bottom sheet form for a manager to create a shift for a staff member.
+/// Bottom sheet form for a manager to create a shift for a staff member,
+/// or edit an existing one when [existingShift] is passed.
 class AddShiftSheet extends StatefulWidget {
   final List<Employee> employees;
   final DateTime initialDay;
   final Employee? initialEmployee;
+
+  /// When set, the sheet edits this shift instead of creating a new one.
+  final Shift? existingShift;
 
   const AddShiftSheet({
     super.key,
     required this.employees,
     required this.initialDay,
     this.initialEmployee,
+    this.existingShift,
   });
 
   @override
@@ -41,11 +47,27 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   bool _isSaving = false;
   String? _errorMessage;
 
+  bool get _isEditing => widget.existingShift != null;
+
   @override
   void initState() {
     super.initState();
     _shiftDate = widget.initialDay;
     _selectedEmployee = widget.initialEmployee;
+
+    final existing = widget.existingShift;
+    if (existing != null) {
+      final start = existing.startTime;
+      _shiftDate = DateTime(start.year, start.month, start.day);
+      _startTime = TimeOfDay.fromDateTime(start);
+      _notesController.text = existing.notes;
+
+      // Null if the employee has since been deactivated; the manager
+      // then has to pick someone else before saving.
+      final matches = widget.employees.where((e) => e.id == existing.employeeId);
+      _selectedEmployee = matches.isNotEmpty ? matches.first : null;
+    }
+
     _loadJobTypes();
     _loadClients();
   }
@@ -68,6 +90,14 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       setState(() {
         _jobTypes = jobTypes;
         _isLoadingJobTypes = false;
+
+        // When editing, preselect the shift's current job type. Stays
+        // null if that job type has since been deleted.
+        final existing = widget.existingShift;
+        if (existing != null && _selectedJobType == null) {
+          final matches = jobTypes.where((j) => j.id == existing.jobTypeId);
+          if (matches.isNotEmpty) _selectedJobType = matches.first;
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -90,6 +120,13 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       setState(() {
         _clients = clients;
         _isLoadingClients = false;
+
+        // When editing, preselect the shift's current client.
+        final existing = widget.existingShift;
+        if (existing != null && _selectedClient == null) {
+          final matches = clients.where((c) => c.id == existing.clientId);
+          if (matches.isNotEmpty) _selectedClient = matches.first;
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -111,11 +148,22 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   }
 
   Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final oneYearAhead = DateTime(today.year + 1, today.month, today.day);
+
+    // The picker requires firstDate <= initialDate <= lastDate, so widen
+    // the range if the shift's date falls outside the normal window
+    // (e.g. a past day chosen on the calendar, or editing an old shift).
+    final firstDate = _shiftDate.isBefore(yesterday) ? _shiftDate : yesterday;
+    final lastDate = _shiftDate.isAfter(oneYearAhead) ? _shiftDate : oneYearAhead;
+
     final picked = await showDatePicker(
       context: context,
       initialDate: _shiftDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
     if (picked != null) {
       setState(() => _shiftDate = picked);
@@ -149,19 +197,40 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
     });
 
     try {
-      await ApiService.createShift(
-        employeeId: _selectedEmployee!.id,
-        startTime: _combine(_shiftDate, _startTime),
-        jobTypeId: _selectedJobType!.id,
-        clientId: _selectedClient!.id,
-        notes: _notesController.text.trim(),
-      );
+      final start = _combine(_shiftDate, _startTime);
+      final existing = widget.existingShift;
+
+      if (existing == null) {
+        await ApiService.createShift(
+          employeeId: _selectedEmployee!.id,
+          startTime: start,
+          jobTypeId: _selectedJobType!.id,
+          clientId: _selectedClient!.id,
+          notes: _notesController.text.trim(),
+        );
+      } else {
+        await ApiService.updateShift(
+          id: existing.id,
+          employeeId: _selectedEmployee!.id,
+          startTime: start,
+          jobTypeId: _selectedJobType!.id,
+          clientId: _selectedClient!.id,
+          notes: _notesController.text.trim(),
+        );
+      }
+
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to create shift. Please try again.';
+        // Show the server's reason when there is one (e.g. "Employee not
+        // found in your company"), otherwise a generic message.
+        _errorMessage = e is ApiException
+            ? e.message
+            : _isEditing
+                ? 'Failed to save changes. Please try again.'
+                : 'Failed to create shift. Please try again.';
         _isSaving = false;
       });
     }
@@ -183,7 +252,10 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Add shift', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              _isEditing ? 'Edit shift' : 'Add shift',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 16),
             DropdownButtonFormField<Employee>(
               initialValue: _selectedEmployee,
@@ -247,7 +319,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Create shift'),
+                    : Text(_isEditing ? 'Save changes' : 'Create shift'),
               ),
             ),
           ],
@@ -289,8 +361,9 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       },
       onSelected: (client) => setState(() => _selectedClient = client),
       fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-        // Keep the field in sync if a client was pre-set (e.g. after a
-        // failed submit) without fighting the user's own typing.
+        // Keep the field in sync if a client was pre-set (e.g. when
+        // editing, or after a failed submit) without fighting the
+        // user's own typing.
         if (_selectedClient != null && controller.text != _selectedClient!.name) {
           controller.text = _selectedClient!.name;
         }

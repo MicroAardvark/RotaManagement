@@ -30,7 +30,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       //   _NavChild('Budgets', route: '/cost-control/budgets'),
       // ]),
       if (isManager) _NavItem('People', children: [
-        // _NavChild('Staff', route: '/staff'),
+        _NavChild('Staff', route: '/staff'),
         _NavChild('Add employee', route: '/staff/new_employee'),
         _NavChild('Clients', route: '/clients'),
       ]),

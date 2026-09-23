@@ -13,6 +13,7 @@ class Shift {
   final String clientHouseNumber;
   final String clientAddressLine1;
   final String clientPostcode;
+  final String jobTypeId;
 
   String get clientFullAddress =>
     clientHouseNumber.isEmpty && clientAddressLine1.isEmpty && clientPostcode.isEmpty
@@ -35,6 +36,7 @@ class Shift {
     required this.clientHouseNumber,
     required this.clientAddressLine1,
     required this.clientPostcode,
+    this.jobTypeId = '',
     this.employeeName,
   });
 
@@ -57,8 +59,8 @@ class Shift {
     return Shift(
       id: json['_id'] as String,
       employeeId: employeeId,
-      startTime: DateTime.parse(json['startTime'] as String),
-      endTime: DateTime.parse(json['endTime'] as String),
+      startTime: DateTime.parse(json['startTime'] as String).toLocal(),
+      endTime: DateTime.parse(json['endTime'] as String).toLocal(),
       role: json['role'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
       employeeName: employeeName,
@@ -67,6 +69,7 @@ class Shift {
       clientHouseNumber: isPopulated ? (clientJson['houseNumber'] as String? ?? '') : '',
       clientAddressLine1: isPopulated ? (clientJson['addressLine1'] as String? ?? '') : '',
       clientPostcode: isPopulated ? (clientJson['postcode'] as String? ?? '') : '',
+      jobTypeId: json['jobTypeId'] as String? ?? '',
     );
   }
 

@@ -2,28 +2,77 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/shift_model.dart';
 import '../models/employee_model.dart';
+import '../services/api_service.dart';
+
+enum ShiftSheetResult { edit, deleted }
 
 /// Opens a bottom sheet showing the details of a single shift.
 /// Pass [employee] when viewing from a manager context (e.g. the
 /// edit-rota grid) so the sheet can show who the shift belongs to;
 /// omit it when a user is viewing their own shift.
-Future<void> showShiftDetails(
+Future<ShiftSheetResult?> showShiftDetails(
   BuildContext context,
   Shift shift, {
   Employee? employee,
+  bool canManage = false,
 }) {
-  return showModalBottomSheet(
+  return showModalBottomSheet<ShiftSheetResult>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => ShiftDetailsSheet(shift: shift, employee: employee),
+    builder: (context) => ShiftDetailsSheet(
+      shift: shift,
+      employee: employee,
+      canManage: canManage,
+    ),
   );
 }
 
 class ShiftDetailsSheet extends StatelessWidget {
   final Shift shift;
   final Employee? employee;
+  final bool canManage;
 
-  const ShiftDetailsSheet({super.key, required this.shift, this.employee});
+  const ShiftDetailsSheet({
+    super.key,
+    required this.shift,
+    this.employee,
+    this.canManage = false,
+  });
+
+   Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete shift'),
+        content: const Text('Remove this shift from the rota? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ApiService.deleteShift(shift.id);
+      if (!context.mounted) return;
+      Navigator.of(context).pop(ShiftSheetResult.deleted);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e is ApiException ? e.message : 'Failed to delete shift')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +135,32 @@ class ShiftDetailsSheet extends StatelessWidget {
               child: const Text('Close'),
             ),
           ),
+
+          if (canManage) ...[
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit'),
+                    onPressed: () => Navigator.of(context).pop(ShiftSheetResult.edit),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Delete'),
+                    onPressed: () => _confirmDelete(context),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

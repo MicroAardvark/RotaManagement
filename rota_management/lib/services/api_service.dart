@@ -7,7 +7,12 @@ import '../models/job_type_model.dart';
 import '../models/client_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://rota.princecleaning.co.uk';
+    /// Defaults to the origin the web app was loaded from, so the
+    /// production build needs no config. Override for local development
+    /// with --dart-define=API_BASE_URL=http://localhost:3000
+    static const String _apiOverride = String.fromEnvironment('API_BASE_URL');
+    static final String baseUrl =
+        _apiOverride.isNotEmpty ? _apiOverride : Uri.base.origin;
 
   static const _storage = FlutterSecureStorage();
 
@@ -183,7 +188,7 @@ class ApiService {
       },
       body: jsonEncode({
         'employeeId': employeeId,
-        'startTime': startTime.toIso8601String(),
+        'startTime': startTime.toUtc().toIso8601String(),
         'jobTypeId': jobTypeId,
         'clientId': clientId,
         'notes': notes,
@@ -194,6 +199,69 @@ class ApiService {
     }
     final data = jsonDecode(response.body);
     return Shift.fromJson(data['shift']);
+  }
+
+    static Future<void> deleteShift(String id) async {
+    final token = await getToken();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/shifts/$id'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) return;
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to delete shift'),
+    );
+  }
+
+  static Future<Shift> updateShift({
+    required String id,
+    required String employeeId,
+    required DateTime startTime,
+    required String jobTypeId,
+    required String clientId,
+    String notes = '',
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/shifts/$id'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'employeeId': employeeId,
+        'startTime': startTime.toUtc().toIso8601String(),
+        'jobTypeId': jobTypeId,
+        'clientId': clientId,
+        'notes': notes,
+      }),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return Shift.fromJson(data['shift'] as Map<String, dynamic>);
+    }
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to update shift'),
+    );
+  }
+
+  /// Returns how many upcoming shifts were removed.
+  static Future<int> deactivateEmployee(String employeeId) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/employees/$employeeId/deactivate'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (data['removedShifts'] as num?)?.toInt() ?? 0;
+    }
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to deactivate employee'),
+    );
   }
 
   /// Manager-only: creates a new employee account within the manager's
@@ -414,7 +482,14 @@ class ApiService {
       }),
     );
  
-    if (response.statusCode == 200) return;
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final newToken = data['token'] as String?;
+      if (newToken != null) {
+        await _storage.write(key: 'jwt_token', value: newToken);
+      }
+      return;
+    }
  
     String? field;
     try {

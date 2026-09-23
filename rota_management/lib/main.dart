@@ -6,6 +6,7 @@ import 'new_employee.dart'; // update this path/filename to match your actual fi
 import 'rota_edit.dart'; // update this path/filename to match your actual file
 import 'settings.dart'; // update this path/filename to match your actual file
 import 'clients.dart'; // update this path/filename to match your actual file
+import 'staff.dart';
 
 void main() {
   runApp(const MyApp());
@@ -30,6 +31,7 @@ class MyApp extends StatelessWidget {
         '/rota/edit': (context) => const RotaEditScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/clients': (context) => const ClientsScreen(),
+        '/staff': (context) => const StaffScreen(),
       },
       home: const MyHomePage(title: 'Rota Manager'),
     );

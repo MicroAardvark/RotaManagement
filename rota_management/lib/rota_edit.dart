@@ -42,6 +42,8 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
   final ScrollController _gridVController = ScrollController();
   bool _isSyncingScroll = false;
 
+  
+
   @override
   void initState() {
     super.initState();
@@ -448,7 +450,7 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
       bottom: 6,
       width: width,
       child: GestureDetector(
-        onTap: () => showShiftDetails(context, shift, employee: employee),
+        onTap: () => _onShiftTapped(shift, employee),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
@@ -470,6 +472,38 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _onShiftTapped(Shift shift, Employee employee) async {
+    final result = await showShiftDetails(
+      context,
+      shift,
+      employee: employee,
+      canManage: true,
+    );
+    if (!mounted) return;
+
+    if (result == ShiftSheetResult.deleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shift deleted')),
+      );
+      _loadRota();
+    } else if (result == ShiftSheetResult.edit) {
+      _openEditShiftSheet(shift);
+    }
+  }
+
+  Future<void> _openEditShiftSheet(Shift shift) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => AddShiftSheet(
+        employees: _employees,
+        initialDay: shift.startTime,
+        existingShift: shift,
+      ),
+    );
+    if (saved == true && mounted) _loadRota();
   }
 
   Future<void> _openAddShiftSheet({Employee? preselectedEmployee, DateTime? day}) async {
