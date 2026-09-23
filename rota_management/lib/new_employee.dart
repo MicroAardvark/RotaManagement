@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 
 /// Form screen allowing a manager to add a new employee to their
-/// company. Only reachable from manager-only navigation - the backend
+/// company. The new starter is emailed a link to set their own
+/// password, so the manager never chooses or sees it.
+///
+/// Only reachable from manager-only navigation - the backend
 /// independently re-verifies manager status and company on submit,
 /// so this screen being reachable is a UX convenience, not the
 /// security boundary.
@@ -17,18 +20,18 @@ class _NewEmployeeScreenState extends State<NewEmployeeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
 
   String _role = 'employee';
-  bool _obscurePassword = true;
   bool _isSaving = false;
   String? _errorMessage;
+
+  /// Server-side error shown under the email field (e.g. duplicate email).
+  String? _emailServerError;
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
@@ -43,17 +46,8 @@ class _NewEmployeeScreenState extends State<NewEmployeeScreen> {
     return null;
   }
 
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Password is required';
-    }
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters';
-    }
-    return null;
-  }
-
   Future<void> _submit() async {
+    setState(() => _emailServerError = null);
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -61,16 +55,32 @@ class _NewEmployeeScreenState extends State<NewEmployeeScreen> {
       _errorMessage = null;
     });
 
+    final email = _emailController.text.trim();
+
     try {
       await ApiService.createEmployee(
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
         role: _role,
       );
 
       if (!mounted) return;
+      // Root ScaffoldMessenger outlives this route, so the snackbar
+      // stays visible on the screen we pop back to.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Invite sent to $email')),
+      );
       Navigator.of(context).pop(true); // signal success to caller
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (e.statusCode == 409) {
+          _emailServerError = e.message;
+        } else {
+          _errorMessage = e.message;
+        }
+        _isSaving = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -107,29 +117,20 @@ class _NewEmployeeScreenState extends State<NewEmployeeScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   autocorrect: false,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Email address',
+                    helperText:
+                        "We'll email them a link to set their own password.",
+                    helperMaxLines: 2,
+                    errorText: _emailServerError,
+                    errorMaxLines: 2,
                   ),
                   validator: _validateEmail,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Temporary password',
-                    helperText: 'Share this with the employee securely; '
-                        'they should change it after first login.',
-                    helperMaxLines: 2,
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  validator: _validatePassword,
+                  onChanged: (_) {
+                    if (_emailServerError != null) {
+                      setState(() => _emailServerError = null);
+                    }
+                  },
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -159,7 +160,7 @@ class _NewEmployeeScreenState extends State<NewEmployeeScreen> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Add employee'),
+                      : const Text('Add and send invite'),
                 ),
               ],
             ),

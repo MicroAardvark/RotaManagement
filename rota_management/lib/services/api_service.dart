@@ -7,7 +7,7 @@ import '../models/job_type_model.dart';
 import '../models/client_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://rota.princecleaning.co.uk';
+  static const String baseUrl = 'https://rota.princecleaning.co.uk';
 
   static const _storage = FlutterSecureStorage();
 
@@ -67,43 +67,7 @@ class ApiService {
   }
 
   // Manager-only — requires a valid manager JWT to already be stored
-  static Future<Map<String, dynamic>> registerStaff({
-    required String name,
-    required String email,
-    required String password,
-    required String role, // 'manager' or 'employee'
-  }) async {
-    final token = await getToken();
-
-    if (token == null) {
-      throw ApiException(statusCode: 401, message: 'You must be logged in.');
-    }
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/auth/register'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-        'password': password,
-        'role': role,
-      }),
-    );
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-    if (response.statusCode == 201) {
-      return data;
-    }
-
-    throw ApiException(
-      statusCode: response.statusCode,
-      message: (data['message'] as String?) ?? 'Registration failed.',
-    );
-  }
+  
 
   static Future<List<Employee>> getCurrentEmployees() async {
     final token = await getToken(); // however you retrieve the JWT
@@ -237,11 +201,10 @@ class ApiService {
   static Future<void> createEmployee({
     required String name,
     required String email,
-    required String password,
     required String role,
   }) async {
     final token = await getToken();
-
+ 
     final response = await http.post(
       Uri.parse('$baseUrl/api/employees'),
       headers: {
@@ -251,20 +214,51 @@ class ApiService {
       body: jsonEncode({
         'name': name,
         'email': email,
-        'password': password,
         'role': role,
       }),
     );
-
-    if (response.statusCode == 201) {
-      return;
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    throw Exception(data['error'] ?? 'Failed to create employee');
+ 
+    if (response.statusCode == 201) return;
+ 
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to create employee'),
+    );
   }
 
-    static Future<List<JobType>> getJobTypes() async {
+  static Future<void> resendInvite(String employeeId) async {
+    final token = await getToken();
+ 
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/employees/$employeeId/resend-invite'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+ 
+    if (response.statusCode == 200) return;
+ 
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to resend invite'),
+    );
+  }
+ 
+  /// Pulls the error text out of a JSON error body without crashing if
+  /// the body isn't JSON (e.g. an nginx 502 page).
+  static String _errorFrom(http.Response response, String fallback) {
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (data['error'] as String?) ?? (data['message'] as String?) ?? fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+ 
+
+
+  static Future<List<JobType>> getJobTypes() async {
     final token = await getToken(); // however you retrieve the stored JWT elsewhere
     final response = await http.get(
       Uri.parse('$baseUrl/api/company/job-types'),
