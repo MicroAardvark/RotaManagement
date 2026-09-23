@@ -8,6 +8,16 @@ class Shift {
   final DateTime endTime;
   final String role;
   final String notes;
+  final String clientId;
+  final String clientName;
+  final String clientHouseNumber;
+  final String clientAddressLine1;
+  final String clientPostcode;
+
+  String get clientFullAddress =>
+    clientHouseNumber.isEmpty && clientAddressLine1.isEmpty && clientPostcode.isEmpty
+        ? ''
+        : '$clientHouseNumber $clientAddressLine1, $clientPostcode';
 
   // Only populated when returned from the manager's company-wide
   // endpoint (employeeId is populated with name/role there).
@@ -20,6 +30,11 @@ class Shift {
     required this.endTime,
     this.role = '',
     this.notes = '',
+    required this.clientName,
+    required this.clientId,
+    required this.clientHouseNumber,
+    required this.clientAddressLine1,
+    required this.clientPostcode,
     this.employeeName,
   });
 
@@ -27,6 +42,8 @@ class Shift {
     // employeeId can be a plain string OR a populated object
     // ({_id, name, role}) depending on which endpoint returned it.
     final rawEmployeeId = json['employeeId'];
+    final clientJson = json['clientId'];
+    final isPopulated = clientJson is Map<String, dynamic>;
     String employeeId;
     String? employeeName;
 
@@ -45,6 +62,11 @@ class Shift {
       role: json['role'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
       employeeName: employeeName,
+      clientId: isPopulated ? clientJson['_id'] as String : clientJson as String? ?? '',
+      clientName: isPopulated ? (clientJson['name'] as String? ?? '') : '',
+      clientHouseNumber: isPopulated ? (clientJson['houseNumber'] as String? ?? '') : '',
+      clientAddressLine1: isPopulated ? (clientJson['addressLine1'] as String? ?? '') : '',
+      clientPostcode: isPopulated ? (clientJson['postcode'] as String? ?? '') : '',
     );
   }
 

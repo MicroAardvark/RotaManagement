@@ -4,6 +4,9 @@ import 'services/api_service.dart';
 import 'models/employee_model.dart';
 import 'models/shift_model.dart';
 import 'new_employee.dart';
+import 'widgets/app_top_bar.dart';
+import 'widgets/shift_details_sheet.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -62,50 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rota Manager'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle_outlined),
-            tooltip: 'Account',
-            onPressed: () {
-              // TODO: navigate to account screen
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.calendar_month_outlined),
-            tooltip: 'Rota',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const RotaScreen()),
-              ); 
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.event_busy_outlined),
-            tooltip: 'Absence',
-            onPressed: () {
-              // TODO: navigate to absence screen
-            },
-          ),
-          isManager
-              ? IconButton(
-                icon: const Icon(Icons.person_add_outlined),
-                tooltip: 'Add employee',
-                onPressed: () async {
-                  final added = await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NewEmployeeScreen()),
-                  );
-                  if (added == true) {
-                    _loadHomeData(); // or _loadHomeData(), refresh whichever screen called it
-                  }
-                },
-              )
-              : const SizedBox.shrink(),
-        ],
-      ),
+      appBar:  AppTopBar(activeItem: 'Home', isManager: isManager),
       body: RefreshIndicator(
         onRefresh: _loadHomeData,
         child: _buildBody(),
@@ -152,14 +112,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNextShiftCard() {
+    if (_nextShift == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('No upcoming shifts scheduled'),
+        ),
+      );
+    }
+
+    final shift = _nextShift!;
+
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.schedule_outlined),
-        title: const Text('Your next shift'),
-        subtitle: Text(
-          _nextShift != null
-              ? _nextShift!.formattedDate // e.g. "Tue 9 Sep, 09:00–17:00"
-              : 'No upcoming shifts scheduled',
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Your next shift', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 16),
+            DetailRow(
+              icon: Icons.calendar_today_outlined,
+              label: 'Date',
+              value: DateFormat('EEEE d MMMM yyyy').format(shift.startTime),
+            ),
+            const SizedBox(height: 12),
+            DetailRow(
+              icon: Icons.schedule_outlined,
+              label: 'Time',
+              value: '${DateFormat('HH:mm').format(shift.startTime)} – '
+                  '${DateFormat('HH:mm').format(shift.endTime)}',
+            ),
+            if (shift.role.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              DetailRow(icon: Icons.work_outline, label: 'Role / area', value: shift.role),
+            ],
+            if (shift.clientName.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              DetailRow(
+                icon: Icons.business_outlined,
+                label: 'Client',
+                value: shift.clientFullAddress.isNotEmpty
+                    ? '${shift.clientName}, ${shift.clientFullAddress}'
+                    : shift.clientName,
+              ),
+            ],
+            if (shift.notes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              DetailRow(icon: Icons.notes_outlined, label: 'Notes', value: shift.notes),
+            ],
+          ],
         ),
       ),
     );

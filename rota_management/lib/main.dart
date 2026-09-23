@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'login.dart'; // update this path/filename to match your actual file
+import 'home.dart'; // update this path/filename to match your actual file
+import 'rota.dart'; // update this path/filename to match your actual file
+import 'new_employee.dart'; // update this path/filename to match your actual file
+import 'rota_edit.dart'; // update this path/filename to match your actual file
+import 'settings.dart'; // update this path/filename to match your actual file
+import 'clients.dart'; // update this path/filename to match your actual file
 
 void main() {
   runApp(const MyApp());
@@ -16,6 +22,15 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/rota': (context) => const RotaScreen(),
+        '/staff/new_employee': (context) => const NewEmployeeScreen(),
+        '/rota/edit': (context) => const RotaEditScreen(),
+        '/settings': (context) => const SettingsScreen(),
+        '/clients': (context) => const ClientsScreen(),
+      },
       home: const MyHomePage(title: 'Rota Manager'),
     );
   }

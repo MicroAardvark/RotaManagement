@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/employee_model.dart';
 import '../models/shift_model.dart';
+import '../models/job_type_model.dart';
+import '../models/client_model.dart';
 
 class ApiService {
   static const String baseUrl = 'http://rota.princecleaning.co.uk';
@@ -201,15 +203,14 @@ class ApiService {
   }
 
   /// Manager-only: creates a new shift for an employee in their company.
-  static Future<Shift> createShift({
+    static Future<Shift> createShift({
     required String employeeId,
     required DateTime startTime,
-    required DateTime endTime,
-    String role = '',
+    required String jobTypeId,
+    required String clientId,
     String notes = '',
   }) async {
     final token = await getToken();
-
     final response = await http.post(
       Uri.parse('$baseUrl/api/shifts'),
       headers: {
@@ -219,19 +220,16 @@ class ApiService {
       body: jsonEncode({
         'employeeId': employeeId,
         'startTime': startTime.toIso8601String(),
-        'endTime': endTime.toIso8601String(),
-        'role': role,
+        'jobTypeId': jobTypeId,
+        'clientId': clientId,
         'notes': notes,
       }),
     );
-
-    if (response.statusCode == 201) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return Shift.fromJson(data['shift'] as Map<String, dynamic>);
-    } else {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(data['error'] ?? 'Failed to create shift');
+    if (response.statusCode != 201) {
+      throw Exception('Failed to create shift');
     }
+    final data = jsonDecode(response.body);
+    return Shift.fromJson(data['shift']);
   }
 
   /// Manager-only: creates a new employee account within the manager's
@@ -265,6 +263,145 @@ class ApiService {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     throw Exception(data['error'] ?? 'Failed to create employee');
   }
+
+    static Future<List<JobType>> getJobTypes() async {
+    final token = await getToken(); // however you retrieve the stored JWT elsewhere
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/company/job-types'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch job types');
+    }
+    final data = jsonDecode(response.body);
+    return (data['jobTypes'] as List)
+        .map((j) => JobType.fromJson(j))
+        .toList();
+  }
+
+  static Future<JobType> addJobType(String name, int lengthMinutes) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/company/job-types'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'name': name, 'lengthMinutes': lengthMinutes}),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Failed to add job type');
+    }
+    final data = jsonDecode(response.body);
+    return JobType.fromJson(data['jobType']);
+  }
+
+  static Future<JobType> updateJobType(String id, String name, int lengthMinutes) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/company/job-types/$id'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'name': name, 'lengthMinutes': lengthMinutes}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update job type');
+    }
+    final data = jsonDecode(response.body);
+    return JobType.fromJson(data['jobType']);
+  }
+
+  static Future<void> deleteJobType(String id) async {
+    final token = await getToken();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/company/job-types/$id'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete job type');
+    }
+  }
+    
+  static Future<List<Client>> getClients() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/clients'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch clients');
+    }
+    final data = jsonDecode(response.body);
+    return (data['clients'] as List)
+        .map((c) => Client.fromJson(c))
+        .toList();
+  }
+
+  static Future<Client> addClient({
+    required String name,
+    required String houseNumber,
+    required String addressLine1,
+    required String postcode,
+    required String phone,
+    required String email,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/clients'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': name,
+        'houseNumber': houseNumber,
+        'addressLine1': addressLine1,
+        'postcode': postcode,
+        'phone': phone,
+        'email': email,
+      }),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Failed to add client');
+    }
+    final data = jsonDecode(response.body);
+    return Client.fromJson(data['client']);
+  }
+
+   static Future<Client> updateClient({
+    required String id,
+    required String name,
+    required String houseNumber,
+    required String addressLine1,
+    required String postcode,
+    required String phone,
+    required String email,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/clients/$id'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': name,
+        'houseNumber': houseNumber,
+        'addressLine1': addressLine1,
+        'postcode': postcode,
+        'phone': phone,
+        'email': email,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update client');
+    }
+    final data = jsonDecode(response.body);
+    return Client.fromJson(data['client']);
+  }
+  
 }
 
 class ApiException implements Exception {
