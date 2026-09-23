@@ -95,7 +95,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: const Text('Log In / Sign Up', style: TextStyle(fontSize: 16)),
+                    child: const Text('Log In', style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ],

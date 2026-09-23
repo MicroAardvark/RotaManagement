@@ -395,6 +395,54 @@ class ApiService {
     final data = jsonDecode(response.body);
     return Client.fromJson(data['client']);
   }
+
+  static Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = await getToken();
+ 
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/change-password'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+ 
+    if (response.statusCode == 200) return;
+ 
+    String? field;
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      field = data['field'] as String?;
+    } catch (_) {}
+ 
+    throw ChangePasswordException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to change password'),
+      field: field,
+    );
+  }
+
+  static Future<void> requestPasswordReset(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+ 
+    if (response.statusCode == 200) return;
+ 
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: _errorFrom(response, 'Failed to send the reset link'),
+    );
+  }
   
 }
 
@@ -406,4 +454,14 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class ChangePasswordException extends ApiException {
+  final String? field;
+ 
+  ChangePasswordException({
+    required super.statusCode,
+    required super.message,
+    this.field,
+  });
 }
