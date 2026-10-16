@@ -6,6 +6,7 @@ class Client {
   final String postcode;
   final String phone;
   final String email;
+  final String access;
 
   Client({
     required this.id,
@@ -15,6 +16,7 @@ class Client {
     required this.postcode,
     required this.phone,
     required this.email,
+    required this.access,
   });
 
   factory Client.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class Client {
       postcode: json['postcode'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       email: json['email'] as String? ?? '',
+      access: json['access'] as String? ?? ''
     );
   }
   String get fullAddress => '$houseNumber $addressLine1, $postcode';

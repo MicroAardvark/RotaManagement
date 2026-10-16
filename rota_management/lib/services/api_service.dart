@@ -408,6 +408,7 @@ class ApiService {
     required String postcode,
     required String phone,
     required String email,
+    required String access,
   }) async {
     final token = await getToken();
     final response = await http.post(
@@ -423,6 +424,7 @@ class ApiService {
         'postcode': postcode,
         'phone': phone,
         'email': email,
+        'access': access,
       }),
     );
     if (response.statusCode != 201) {
@@ -432,7 +434,7 @@ class ApiService {
     return Client.fromJson(data['client']);
   }
 
-   static Future<Client> updateClient({
+  static Future<Client> updateClient({
     required String id,
     required String name,
     required String houseNumber,
@@ -440,6 +442,7 @@ class ApiService {
     required String postcode,
     required String phone,
     required String email,
+    required String access,
   }) async {
     final token = await getToken();
     final response = await http.put(
@@ -455,6 +458,7 @@ class ApiService {
         'postcode': postcode,
         'phone': phone,
         'email': email,
+        'access': access,
       }),
     );
     if (response.statusCode != 200) {

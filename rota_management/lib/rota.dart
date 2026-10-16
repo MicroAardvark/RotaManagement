@@ -26,6 +26,7 @@ class _RotaScreenState extends State<RotaScreen> {
   String? _errorMessage;
 
   bool _isManager = false;
+  // ignore: unused_field
   List<Shift> _shifts = [];
   List<Employee> _employees = []; // only needed for managers, for the grid rows
 

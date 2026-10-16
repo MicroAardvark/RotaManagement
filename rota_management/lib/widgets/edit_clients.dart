@@ -29,6 +29,7 @@ class _EditClientSheetState extends State<EditClientSheet> {
   late final TextEditingController _postcodeController;
   late final TextEditingController _phoneController;
   late final TextEditingController _emailController;
+  late final TextEditingController _accessController;
 
   bool _isSaving = false;
   String? _errorMessage;
@@ -44,6 +45,7 @@ class _EditClientSheetState extends State<EditClientSheet> {
     _postcodeController = TextEditingController(text: widget.client?.postcode ?? '');
     _phoneController = TextEditingController(text: widget.client?.phone ?? '');
     _emailController = TextEditingController(text: widget.client?.email ?? '');
+    _accessController = TextEditingController(text: widget.client?.access ?? '');
   }
 
   @override
@@ -54,6 +56,7 @@ class _EditClientSheetState extends State<EditClientSheet> {
     _postcodeController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _accessController.dispose();
     super.dispose();
   }
 
@@ -64,6 +67,7 @@ class _EditClientSheetState extends State<EditClientSheet> {
     final postcode = _postcodeController.text.trim();
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
+    final access = _accessController.text.trim();
 
     if (name.isEmpty) {
       setState(() => _errorMessage = 'Please enter a client name');
@@ -105,6 +109,7 @@ class _EditClientSheetState extends State<EditClientSheet> {
           postcode: postcode,
           phone: phone,
           email: email,
+          access: access,
         );
       } else {
         await ApiService.addClient(
@@ -114,6 +119,7 @@ class _EditClientSheetState extends State<EditClientSheet> {
           postcode: postcode,
           phone: phone,
           email: email,
+          access: access,
         );
       }
       if (!mounted) return;
@@ -189,6 +195,19 @@ class _EditClientSheetState extends State<EditClientSheet> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _accessController,
+              keyboardType: TextInputType.multiline,
+              minLines: 2,
+              maxLines: 5,
+              maxLength: 1000,
+              decoration: const InputDecoration(
+                labelText: 'Access (optional)',
+                hintText: 'How staff get in, e.g. key safe by the back door',
+                alignLabelWithHint: true,
+              ),
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 12),

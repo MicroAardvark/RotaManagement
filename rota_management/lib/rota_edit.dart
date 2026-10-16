@@ -28,6 +28,7 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
   bool _isAuthorised = true;
   String? _errorMessage;
 
+  // ignore: unused_field
   List<Shift> _shifts = [];
   List<Employee> _employees = [];
 

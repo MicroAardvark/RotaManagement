@@ -127,6 +127,14 @@ class ShiftDetailsSheet extends StatelessWidget {
                   : shift.clientName,
             ),
           ],
+          if (shift.clientAccess.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            DetailRow(
+              icon: Icons.key_outlined,
+              label: 'Access',
+              value: shift.clientAccess,
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
