@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -153,6 +154,20 @@ class ApiService {
 
   static List<Map<String, dynamic>> _list(dynamic value) =>
       value is List ? value.whereType<Map<String, dynamic>>().toList() : [];
+
+  /// Parses shifts one at a time, so a single malformed record (e.g. an
+  /// old shift with missing data) is skipped instead of breaking the rota.
+  static List<Shift> _shifts(dynamic value) {
+    final shifts = <Shift>[];
+    for (final json in _list(value)) {
+      try {
+        shifts.add(Shift.fromJson(json));
+      } catch (e) {
+        debugPrint('Skipping shift ${json['_id']} that could not be read: $e');
+      }
+    }
+    return shifts;
+  }
 
   static Future<void> _clearLegacyToken() async {
     try {
@@ -335,14 +350,14 @@ class ApiService {
   /// The current user's upcoming published shifts.
   static Future<List<Shift>> getMyShifts() async {
     final data = await _json('GET', '/api/shifts/mine', 'Failed to load shifts');
-    return _list(data['shifts']).map(Shift.fromJson).toList();
+    return _shifts(data['shifts']);
   }
 
   /// Manager-only: every upcoming shift for the company, drafts included.
   static Future<List<Shift>> getCompanyShifts() async {
     final response = await _send('GET', '/api/shifts/company');
     if (response.statusCode == 200) {
-      return _list(_decode(response)['shifts']).map(Shift.fromJson).toList();
+      return _shifts(_decode(response)['shifts']);
     }
     if (response.statusCode == 403) return [];
     throw _failure(response, 'Failed to load company shifts');

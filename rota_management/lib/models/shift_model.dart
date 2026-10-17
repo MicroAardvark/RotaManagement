@@ -60,21 +60,26 @@ class Shift {
     String? employeeName;
 
     if (rawEmployeeId is Map<String, dynamic>) {
-      employeeId = rawEmployeeId['_id'] as String;
+      employeeId = rawEmployeeId['_id'] as String? ?? '';
       employeeName = rawEmployeeId['name'] as String?;
     } else {
-      employeeId = rawEmployeeId as String;
+      // Null when the staff member no longer exists
+      employeeId = rawEmployeeId as String? ?? '';
     }
+
+    final startTime = DateTime.parse(json['startTime'] as String).toLocal();
+    final endRaw = json['endTime'] as String?;
+    final endTime = endRaw == null ? startTime : DateTime.parse(endRaw).toLocal();
 
     return Shift(
       id: json['_id'] as String,
       employeeId: employeeId,
-      startTime: DateTime.parse(json['startTime'] as String).toLocal(),
-      endTime: DateTime.parse(json['endTime'] as String).toLocal(),
+      startTime: startTime,
+      endTime: endTime,
       role: json['role'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
       employeeName: employeeName,
-      clientId: isPopulated ? clientJson['_id'] as String : clientJson as String? ?? '',
+      clientId: isPopulated ? (clientJson['_id'] as String? ?? '') : (clientJson as String? ?? ''),
       clientName: isPopulated ? (clientJson['name'] as String? ?? '') : '',
       clientHouseNumber: isPopulated ? (clientJson['houseNumber'] as String? ?? '') : '',
       clientAddressLine1: isPopulated ? (clientJson['addressLine1'] as String? ?? '') : '',

@@ -104,7 +104,8 @@ class _RotaScreenState extends State<RotaScreen> {
         _shiftsByDay = grouped;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Failed to load the rota: $e\n$stack');
       if (!mounted) return;
       setState(() {
         _errorMessage = 'Unable to load the rota. Please try again.';

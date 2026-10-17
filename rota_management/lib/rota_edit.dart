@@ -142,7 +142,8 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
         _isLoading = false;
       });
       _loadWeekStatus(_focusedDay, force: true);
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Failed to load the rota: $e\n$stack');
       if (!mounted) return;
       setState(() {
         _errorMessage = 'Unable to load the rota. Please try again.';
