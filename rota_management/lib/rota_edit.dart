@@ -8,6 +8,7 @@ import 'widgets/add_shift_sheet.dart';
 import 'dart:ui' as ui;
 import 'widgets/app_top_bar.dart';
 import 'widgets/shift_details_sheet.dart';
+import 'widgets/staff_avatar.dart';
 
 class RotaEditScreen extends StatefulWidget {
   const RotaEditScreen({super.key});
@@ -36,6 +37,11 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
   DateTime? _selectedDay;
 
   Map<DateTime, List<Shift>> _shiftsByDay = {};
+
+  // Publishing: status of the week shown in the calendar
+  WeekStatus? _weekStatus;
+  DateTime? _weekStatusFor;
+  bool _isPublishing = false;
 
   // Kept in lock-step so the fixed name column and the scrollable
   // timeline scroll together vertically.
@@ -135,6 +141,7 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
         _shiftsByDay = grouped;
         _isLoading = false;
       });
+      _loadWeekStatus(_focusedDay, force: true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -146,6 +153,104 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
 
   List<Shift> _shiftsForDay(DateTime day) {
     return _shiftsByDay[_dayKey(day)] ?? [];
+  }
+
+  /// Loads how many changes are waiting to be published for the week
+  /// containing [day]. Skips the call if that week is already loaded.
+  Future<void> _loadWeekStatus(DateTime day, {bool force = false}) async {
+    final monday = ApiService.mondayOf(day);
+    if (!force && _weekStatusFor == monday) return;
+    _weekStatusFor = monday;
+    try {
+      final status = await ApiService.getWeekStatus(monday);
+      if (!mounted || _weekStatusFor != monday) return;
+      setState(() => _weekStatus = status);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _weekStatus = null); // the bar falls back to "Publish week"
+    }
+  }
+
+  Future<void> _publishWeek() async {
+    final monday = ApiService.mondayOf(_focusedDay);
+    final label = DateFormat('d MMM').format(monday);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Publish w/c $label?'),
+        content: const Text(
+          'Staff will see this week, and anyone with new, changed or '
+          'removed shifts will be emailed their rota.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Publish'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isPublishing = true);
+    try {
+      final result = await ApiService.publishWeek(monday);
+      if (!mounted) return;
+      final emailed = result.emailed == 1 ? '1 person' : '${result.emailed} people';
+      final message = result.failed == 0
+          ? 'Published. Emailed $emailed.'
+          : 'Published. Emailed $emailed, but ${result.failed} email(s) failed. Check their addresses.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      await _loadRota();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e is ApiException ? e.message : 'Failed to publish the rota')),
+      );
+    } finally {
+      if (mounted) setState(() => _isPublishing = false);
+    }
+  }
+
+  Widget _buildPublishBar() {
+    final theme = Theme.of(context);
+    final status = _weekStatus;
+    final pending = status?.pendingTotal;
+    final String text;
+    if (pending == null) {
+      text = 'Publish to show this week to staff';
+    } else if (pending == 0) {
+      text = status!.publishedAt == null ? 'Nothing to publish this week' : 'This week is up to date';
+    } else {
+      text = pending == 1 ? '1 change not published yet' : '$pending changes not published yet';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: (pending ?? 0) > 0 ? theme.colorScheme.secondaryContainer : null,
+      child: Row(
+        children: [
+          Icon(
+            (pending ?? 0) > 0 ? Icons.edit_calendar_outlined : Icons.check_circle_outline,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+          FilledButton.icon(
+            onPressed: _isPublishing || pending == 0 ? null : _publishWeek,
+            icon: _isPublishing
+                ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.send, size: 18),
+            label: const Text('Publish week'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -204,14 +309,17 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
                 _selectedDay = selectedDay;
                 _focusedDay = focusedDay;
               });
+              _loadWeekStatus(focusedDay);
             },
             onPageChanged: (focusedDay) {
               _focusedDay = focusedDay;
+              _loadWeekStatus(focusedDay);
             },
             calendarStyle: const CalendarStyle(
               markerDecoration: BoxDecoration(shape: BoxShape.circle),
             ),
           ),
+          _buildPublishBar(),
           const Divider(height: 1),
           Expanded(child: _buildHourlyTimetable(day)),
         ],
@@ -353,12 +461,11 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          StaffAvatar(
+            id: employee.id,
+            name: employee.name,
+            photoVersion: employee.photoVersion,
             radius: 14,
-            child: Text(
-              employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 12),
-            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -445,6 +552,11 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
     final right = rawRight.clamp(0.0, gridWidth);
     final width = (right - left).clamp(4.0, gridWidth);
 
+    // Drafts: outlined and pale, so it's clear staff can't see them yet.
+    final scheme = Theme.of(context).colorScheme;
+    final isDraft = !shift.published;
+    final label = isDraft ? 'DRAFT · ' : (shift.notifyPending ? 'CHANGED · ' : '');
+
     return Positioned(
       left: left,
       top: 6,
@@ -455,17 +567,20 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: isDraft ? scheme.surfaceContainerHighest : scheme.primaryContainer,
             borderRadius: BorderRadius.circular(6),
+            border: isDraft || shift.notifyPending
+                ? Border.all(color: scheme.primary, width: 1.5)
+                : null,
           ),
           child: Text(
-            '${DateFormat('HH:mm').format(shift.startTime)} - '
+            '$label${DateFormat('HH:mm').format(shift.startTime)} - '
             '${DateFormat('HH:mm').format(shift.endTime)}\n'
             '${shift.role}\n'
             '${shift.clientName}\n'
             '${shift.clientFullAddress.isNotEmpty ? ', ${shift.clientFullAddress}' : ''}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: isDraft ? scheme.onSurface : scheme.onPrimaryContainer,
                 ),
             overflow: TextOverflow.ellipsis,
             maxLines: 2,

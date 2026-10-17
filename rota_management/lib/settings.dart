@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 import 'widgets/app_top_bar.dart';
 import 'widgets/change_password_sheet.dart';
-import 'widgets/edit_job_types.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -39,8 +38,8 @@ class SettingsScreen extends StatelessWidget {
 
     if (confirmed != true) return;
 
-    // Removes the stored JWT and role from secure storage.
-    await ApiService.clearSession();
+    // Clears the session cookie on the server and the cached user here.
+    await ApiService.logout();
 
     if (!context.mounted) return;
 
@@ -55,12 +54,6 @@ class SettingsScreen extends StatelessWidget {
       appBar: const AppTopBar(activeItem: 'Settings'),
       body: ListView(
         children: [
-          ListTile(
-            leading: const Icon(Icons.work_outline),
-            title: const Text('Edit Job Types'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showEditJobTypesSheet(context),
-          ),
           ListTile(
             leading: const Icon(Icons.lock_outline),
             title: const Text('Change password'),
