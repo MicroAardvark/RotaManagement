@@ -348,9 +348,12 @@ class ApiService {
     throw _failure(response, 'Failed to load company shifts');
   }
 
+  /// [endTime] is the finish time the manager chose. Leave it null to
+  /// let the server use the job type's length.
   static Future<Shift> createShift({
     required String employeeId,
     required DateTime startTime,
+    DateTime? endTime,
     required String jobTypeId,
     required String clientId,
     String notes = '',
@@ -358,6 +361,7 @@ class ApiService {
     final data = await _json('POST', '/api/shifts', 'Failed to create shift', body: {
       'employeeId': employeeId,
       'startTime': startTime.toUtc().toIso8601String(),
+      if (endTime != null) 'endTime': endTime.toUtc().toIso8601String(),
       'jobTypeId': jobTypeId,
       'clientId': clientId,
       'notes': notes,
@@ -369,6 +373,7 @@ class ApiService {
     required String id,
     required String employeeId,
     required DateTime startTime,
+    DateTime? endTime,
     required String jobTypeId,
     required String clientId,
     String notes = '',
@@ -376,6 +381,7 @@ class ApiService {
     final data = await _json('PUT', '/api/shifts/$id', 'Failed to update shift', body: {
       'employeeId': employeeId,
       'startTime': startTime.toUtc().toIso8601String(),
+      if (endTime != null) 'endTime': endTime.toUtc().toIso8601String(),
       'jobTypeId': jobTypeId,
       'clientId': clientId,
       'notes': notes,

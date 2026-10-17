@@ -32,6 +32,11 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   Employee? _selectedEmployee;
   late DateTime _shiftDate;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+
+  /// The finish time. Filled in from the job type's length until the
+  /// manager picks one themselves ([_endTimeChosen]).
+  TimeOfDay? _endTime;
+  bool _endTimeChosen = false;
   JobType? _selectedJobType;
   Client? _selectedClient;
   final _notesController = TextEditingController();
@@ -60,6 +65,9 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       final start = existing.startTime;
       _shiftDate = DateTime(start.year, start.month, start.day);
       _startTime = TimeOfDay.fromDateTime(start);
+      // Keep the shift's own finish time, which may differ from the job type
+      _endTime = TimeOfDay.fromDateTime(existing.endTime);
+      _endTimeChosen = true;
       _notesController.text = existing.notes;
 
       // Null if the employee has since been deactivated; the manager
@@ -141,10 +149,34 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
     return DateTime(day.year, day.month, day.day, time.hour, time.minute);
   }
 
-  DateTime? get _calculatedEndTime {
-    if (_selectedJobType == null) return null;
-    final start = _combine(_shiftDate, _startTime);
-    return start.add(Duration(minutes: _selectedJobType!.lengthMinutes));
+  int _minutesOf(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  TimeOfDay _addMinutes(TimeOfDay t, int minutes) {
+    final total = (_minutesOf(t) + minutes).clamp(0, 23 * 60 + 59);
+    return TimeOfDay(hour: total ~/ 60, minute: total % 60);
+  }
+
+  /// Fills the finish time from the job type, unless the manager has
+  /// already chosen one.
+  void _applyJobTypeLength() {
+    final jobType = _selectedJobType;
+    if (jobType == null || _endTimeChosen) return;
+    _endTime = _addMinutes(_startTime, jobType.lengthMinutes);
+  }
+
+  /// Shift length in minutes, or null when the finish isn't after the start.
+  int? get _durationMinutes {
+    final end = _endTime;
+    if (end == null) return null;
+    final minutes = _minutesOf(end) - _minutesOf(_startTime);
+    return minutes > 0 ? minutes : null;
+  }
+
+  String _formatDuration(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '$m min';
+    return m == 0 ? '$h h' : '$h h $m min';
   }
 
   Future<void> _pickDate() async {
@@ -172,9 +204,37 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
 
   Future<void> _pickStartTime() async {
     final picked = await showTimePicker(context: context, initialTime: _startTime);
-    if (picked != null) {
-      setState(() => _startTime = picked);
-    }
+    if (picked == null) return;
+    setState(() {
+      // Moving the start keeps the shift the same length
+      final length = _durationMinutes;
+      _startTime = picked;
+      if (_endTimeChosen && length != null) {
+        _endTime = _addMinutes(picked, length);
+      } else {
+        _applyJobTypeLength();
+      }
+    });
+  }
+
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? _addMinutes(_startTime, 60),
+      helpText: 'Finish time',
+    );
+    if (picked == null) return;
+    setState(() {
+      _endTime = picked;
+      _endTimeChosen = true;
+    });
+  }
+
+  void _resetEndTimeToJobType() {
+    setState(() {
+      _endTimeChosen = false;
+      _applyJobTypeLength();
+    });
   }
 
   Future<void> _submit() async {
@@ -190,6 +250,14 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       setState(() => _errorMessage = 'Please select a client');
       return;
     }
+    if (_endTime == null) {
+      setState(() => _errorMessage = 'Please set a finish time');
+      return;
+    }
+    if (_durationMinutes == null) {
+      setState(() => _errorMessage = 'The finish time must be after the start time');
+      return;
+    }
 
     setState(() {
       _isSaving = true;
@@ -198,12 +266,14 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
 
     try {
       final start = _combine(_shiftDate, _startTime);
+      final end = _combine(_shiftDate, _endTime!);
       final existing = widget.existingShift;
 
       if (existing == null) {
         await ApiService.createShift(
           employeeId: _selectedEmployee!.id,
           startTime: start,
+          endTime: end,
           jobTypeId: _selectedJobType!.id,
           clientId: _selectedClient!.id,
           notes: _notesController.text.trim(),
@@ -213,6 +283,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
           id: existing.id,
           employeeId: _selectedEmployee!.id,
           startTime: start,
+          endTime: end,
           jobTypeId: _selectedJobType!.id,
           clientId: _selectedClient!.id,
           notes: _notesController.text.trim(),
@@ -238,7 +309,11 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final endTime = _calculatedEndTime;
+    final endTime = _endTime;
+    final duration = _durationMinutes;
+    final jobType = _selectedJobType;
+    final differsFromJobType =
+        jobType != null && duration != null && duration != jobType.lengthMinutes;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -284,15 +359,28 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
               trailing: const Icon(Icons.schedule_outlined),
               onTap: _pickStartTime,
             ),
-            if (endTime != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Ends at ${DateFormat('HH:mm').format(endTime)} '
-                  '(${_selectedJobType!.name}, ${_selectedJobType!.lengthMinutes} min)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Finish time'),
+              subtitle: Text(
+                endTime == null
+                    ? 'Choose a job type or set a time'
+                    : duration == null
+                        ? '${endTime.format(context)} (must be after the start)'
+                        : '${endTime.format(context)} (${_formatDuration(duration)})',
+                style: duration == null && endTime != null
+                    ? TextStyle(color: Theme.of(context).colorScheme.error)
+                    : null,
+              ),
+              trailing: const Icon(Icons.schedule_outlined),
+              onTap: _pickEndTime,
+            ),
+            if (differsFromJobType && jobType != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: _resetEndTimeToJobType,
+                  child: Text('Use ${jobType.name} length (${_formatDuration(jobType.lengthMinutes)})'),
                 ),
               ),
             const SizedBox(height: 12),
@@ -440,7 +528,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
 
     if (_jobTypes.isEmpty) {
       return Text(
-        'No job types set up yet. Add one from Settings before creating a shift.',
+        'No job types set up yet. Add one from Manage > Job types before creating a shift.',
         style: Theme.of(context).textTheme.bodySmall,
       );
     }
@@ -454,7 +542,10 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
                 child: Text('${jt.name} (${jt.lengthMinutes} min)'),
               ))
           .toList(),
-      onChanged: (value) => setState(() => _selectedJobType = value),
+      onChanged: (value) => setState(() {
+        _selectedJobType = value;
+        _applyJobTypeLength();
+      }),
     );
   }
 }
