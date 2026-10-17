@@ -16,6 +16,12 @@ class Shift {
   final String jobTypeId;
   final String clientAccess;
 
+  /// False for drafts, which only managers can see.
+  final bool published;
+
+  /// A published shift that changed since the week was last published.
+  final bool notifyPending;
+
   String get clientFullAddress =>
     clientHouseNumber.isEmpty && clientAddressLine1.isEmpty && clientPostcode.isEmpty
         ? ''
@@ -40,6 +46,8 @@ class Shift {
     this.jobTypeId = '',
     this.employeeName,
     required this.clientAccess,
+    this.published = true,
+    this.notifyPending = false,
   });
 
   factory Shift.fromJson(Map<String, dynamic> json) {
@@ -72,7 +80,9 @@ class Shift {
       clientAddressLine1: isPopulated ? (clientJson['addressLine1'] as String? ?? '') : '',
       clientPostcode: isPopulated ? (clientJson['postcode'] as String? ?? '') : '',
       jobTypeId: json['jobTypeId'] as String? ?? '',
-      clientAccess: isPopulated ? (clientJson['access'] as String? ?? '') : ''
+      clientAccess: isPopulated ? (clientJson['access'] as String? ?? '') : '',
+      published: json['published'] as bool? ?? true,
+      notifyPending: json['notifyPending'] as bool? ?? false,
     );
   }
 

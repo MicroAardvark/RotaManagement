@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'services/api_service.dart';
 import 'widgets/forgot_password_sheet.dart';
-
-import 'home.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   String? _errorMessage;
 
   @override
@@ -36,33 +35,20 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final data = await ApiService.login(
+      await ApiService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+        remember: _rememberMe,
       );
 
       if (!mounted) return;
 
-      final role = data['role'] as String;
-      if (role == 'manager') {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
-        );
-      } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
-        );
-      }
+      // Replace the whole stack so Back can't return to the login page.
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } on ApiException catch (e) {
-      setState(() => _errorMessage = e.message);
+      if (mounted) setState(() => _errorMessage = e.message);
     } catch (e) {
-      setState(() => _errorMessage = 'Could not reach the server. Check your connection.');
+      if (mounted) setState(() => _errorMessage = 'Could not reach the server. Check your connection.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -157,7 +143,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                     onFieldSubmitted: (_) => _handleLogin(),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: _rememberMe,
+                    onChanged: _isLoading
+                        ? null
+                        : (value) => setState(() => _rememberMe = value ?? false),
+                    title: const Text('Keep me signed in'),
+                    subtitle: const Text("Don't tick this on a shared computer"),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                   Align(
                     alignment: Alignment.center,
                     child: TextButton(

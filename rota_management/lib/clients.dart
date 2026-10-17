@@ -75,7 +75,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppTopBar(activeItem: 'Clients'),
+      appBar: const AppTopBar(activeItem: 'Manage', isManager: true),
       body: RefreshIndicator(
         onRefresh: _loadClients,
         child: _buildBody(),

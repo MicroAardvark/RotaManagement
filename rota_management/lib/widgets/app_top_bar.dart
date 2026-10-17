@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import '../services/session_store.dart';
+import 'staff_avatar.dart';
 
 /// Primary purple used across the reference design — swap this if you
 /// want the top bar in a different shade to the rest of the app.
 const Color _kTopBarColor = Color(0xFF5B21B6);
 
-/// Shared top navigation bar, used across all manager-facing screens.
-/// Implements PreferredSizeWidget so it can be dropped straight into
-/// Scaffold(appBar: const AppTopBar()).
+/// Shared top navigation bar. Implements PreferredSizeWidget so it can
+/// be dropped straight into Scaffold(appBar: const AppTopBar()).
+///
+/// Manager items show when [isManager] is passed as true, or when the
+/// logged-in user (from SessionStore) is a manager.
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   /// Which nav item is currently active, for highlighting. Pass the
   /// label exactly as it appears in [_navItems], e.g. 'Home'.
@@ -18,7 +22,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(56);
 
-    List<_NavItem> _buildNavItems() {
+  List<_NavItem> _buildNavItems(bool isManager) {
     return [
       _NavItem('Home', route: '/home'),
       _NavItem('Rotas', children: [
@@ -29,10 +33,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       //   _NavChild('Overview', route: '/cost-control'),
       //   _NavChild('Budgets', route: '/cost-control/budgets'),
       // ]),
-      if (isManager) _NavItem('People', children: [
+      if (isManager) _NavItem('Manage', children: [
         _NavChild('Staff', route: '/staff'),
-        _NavChild('Add employee', route: '/staff/new_employee'),
         _NavChild('Clients', route: '/clients'),
+        _NavChild('Job types', route: '/job-types'),
       ]),
       // _NavItem('Attendance', route: '/attendance'),
       _NavItem('Settings', route: '/settings'),
@@ -41,6 +45,14 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: SessionStore.instance,
+      builder: (context, _) => _buildBar(context, SessionStore.instance.user),
+    );
+  }
+
+  Widget _buildBar(BuildContext context, CurrentUser? user) {
+    final showManagerItems = isManager || (user?.isManager ?? false);
     return AppBar(
       automaticallyImplyLeading: false,
       backgroundColor: _kTopBarColor,
@@ -52,7 +64,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           // once you've got a mark to drop in.
           const Icon(Icons.cleaning_services, color: Colors.white, size: 24),
           const SizedBox(width: 24),
-          ..._buildNavItems().map((item) => _buildNavItem(context, item)),
+          ..._buildNavItems(showManagerItems).map((item) => _buildNavItem(context, item)),
         ],
       ),
       actions: [
@@ -65,10 +77,27 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         //   onPressed: () {},
         // ),
         const SizedBox(width: 8),
-        const CircleAvatar(
-          radius: 16,
-          backgroundColor: Colors.white24,
-          child: Icon(Icons.person, color: Colors.white, size: 18),
+        Tooltip(
+          message: 'Your profile',
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: activeItem == 'Profile'
+                ? null
+                : () => Navigator.of(context).pushNamed('/profile'),
+            child: user == null
+                ? const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.white24,
+                    child: Icon(Icons.person, color: Colors.white, size: 18),
+                  )
+                : StaffAvatar(
+                    id: user.id,
+                    name: user.name,
+                    photoVersion: user.photoVersion,
+                    backgroundColor: Colors.white24,
+                    foregroundColor: Colors.white,
+                  ),
+          ),
         ),
         const SizedBox(width: 16),
       ],

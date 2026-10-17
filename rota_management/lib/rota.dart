@@ -7,6 +7,7 @@ import 'models/employee_model.dart';
 import 'services/api_service.dart';
 import 'widgets/app_top_bar.dart';
 import 'widgets/shift_details_sheet.dart';
+import 'widgets/staff_avatar.dart';
 
 class RotaScreen extends StatefulWidget {
   const RotaScreen({super.key});
@@ -309,12 +310,11 @@ class _RotaScreenState extends State<RotaScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          StaffAvatar(
+            id: employee.id,
+            name: employee.name,
+            photoVersion: employee.photoVersion,
             radius: 14,
-            child: Text(
-              employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 12),
-            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -406,6 +406,10 @@ class _RotaScreenState extends State<RotaScreen> {
     final right = rawRight.clamp(0.0, gridWidth);
     final width = (right - left).clamp(4.0, gridWidth);
 
+    // Managers see drafts here too; staff never get them from the API.
+    final scheme = Theme.of(context).colorScheme;
+    final isDraft = !shift.published;
+
     return Positioned(
       left: left,
       top: 6,
@@ -416,17 +420,18 @@ class _RotaScreenState extends State<RotaScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: isDraft ? scheme.surfaceContainerHighest : scheme.primaryContainer,
             borderRadius: BorderRadius.circular(6),
+            border: isDraft ? Border.all(color: scheme.primary, width: 1.5) : null,
           ),
           child: Text(
-            '${DateFormat('HH:mm').format(shift.startTime)} - '
+            '${isDraft ? 'DRAFT · ' : ''}${DateFormat('HH:mm').format(shift.startTime)} - '
             '${DateFormat('HH:mm').format(shift.endTime)}\n'
             '${shift.role}\n'
             '${shift.clientName}\n'
             '${shift.clientFullAddress.isNotEmpty ? ', ${shift.clientFullAddress}' : ''}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: isDraft ? scheme.onSurface : scheme.onPrimaryContainer,
                 ),
             overflow: TextOverflow.ellipsis,
             maxLines: 2,

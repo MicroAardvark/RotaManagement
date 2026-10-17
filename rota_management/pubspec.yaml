@@ -38,6 +38,12 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   intl: ^0.20.3
   table_calendar: ^3.2.1
+  # Picking right to work / NI proof files (web gives bytes, no path)
+  file_picker: ^11.0.3
+  # Profile photos; resizes in the browser before upload
+  image_picker: ^1.1.2
+  # Opening stored documents in a new tab
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
