@@ -158,7 +158,6 @@ class _StaffScreenState extends State<StaffScreen> {
       );
     }
 
-    final theme = Theme.of(context);
     return ListView.separated(
       // Room for the floating button over the last row
       padding: const EdgeInsets.only(bottom: 88),
@@ -174,20 +173,7 @@ class _StaffScreenState extends State<StaffScreen> {
             radius: 20,
           ),
           title: Text(employee.name),
-          subtitle: Row(
-            children: [
-              Text(employee.role == 'manager' ? 'Manager' : 'Employee'),
-              if (!employee.detailsComplete) ...[
-                const SizedBox(width: 8),
-                Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
-                const SizedBox(width: 4),
-                Text(
-                  'Details missing',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
-                ),
-              ],
-            ],
-          ),
+          subtitle: Text(employee.role == 'manager' ? 'Manager' : 'Employee'),
           onTap: () => _openSheet(staffId: employee.id),
           trailing: IconButton(
             icon: const Icon(Icons.person_off_outlined),

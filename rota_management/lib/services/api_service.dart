@@ -271,19 +271,13 @@ class ApiService {
     throw _failure(response, 'Failed to load employees');
   }
 
-  static Future<List<RtwType>> getRtwTypes() async {
-    final data = await _json('GET', '/api/employees/rtw-types', 'Failed to load right to work options');
-    return _list(data['types']).map(RtwType.fromJson).toList();
-  }
-
   static Future<StaffRecord> getStaffDetails(String staffId) async {
     final data = await _json('GET', '/api/employees/$staffId', 'Failed to load employee');
     final employee = data['employee'];
     if (employee is! Map<String, dynamic>) {
       throw ApiException(statusCode: 500, message: 'Failed to load employee');
     }
-    final documents = data['documents'];
-    return StaffRecord.fromJson(employee, documents is List ? documents : const []);
+    return StaffRecord.fromJson(employee);
   }
 
   /// Manager-only: adds someone and emails them an invite. Returns their id.
@@ -299,20 +293,6 @@ class ApiService {
   static Future<void> updateStaff(String staffId, StaffInput input) async {
     await _json('PUT', '/api/employees/$staffId', 'Failed to save changes', body: input.toJson());
   }
-
-  /// [kind] is 'rightToWork' or 'niProof'.
-  static Future<void> uploadStaffDocument(
-    String staffId,
-    String kind,
-    Uint8List bytes,
-    String filename,
-  ) async {
-    await _upload('/api/employees/$staffId/documents/$kind', bytes, filename, 'Upload failed');
-  }
-
-  /// Opening this in a new tab works because the browser sends the
-  /// session cookie by itself.
-  static String documentUrl(String documentId) => '$baseUrl/api/documents/$documentId';
 
   static Future<void> resendInvite(String employeeId) async {
     await _json('POST', '/api/employees/$employeeId/resend-invite', 'Failed to resend invite');
@@ -436,15 +416,15 @@ class ApiService {
     return _list(data['jobTypes']).map(JobType.fromJson).toList();
   }
 
-  static Future<JobType> addJobType(String name, int lengthMinutes) async {
+  static Future<JobType> addJobType(String name) async {
     final data = await _json('POST', '/api/company/job-types', 'Failed to add job type',
-        body: {'name': name, 'lengthMinutes': lengthMinutes});
+        body: {'name': name});
     return JobType.fromJson(data['jobType'] as Map<String, dynamic>);
   }
 
-  static Future<JobType> updateJobType(String id, String name, int lengthMinutes) async {
+  static Future<JobType> updateJobType(String id, String name) async {
     final data = await _json('PUT', '/api/company/job-types/$id', 'Failed to update job type',
-        body: {'name': name, 'lengthMinutes': lengthMinutes});
+        body: {'name': name});
     return JobType.fromJson(data['jobType'] as Map<String, dynamic>);
   }
 
@@ -508,7 +488,7 @@ class ApiException implements Exception {
   final String message;
 
   /// Per-field validation errors from the server, keyed by field path
-  /// (e.g. 'emergencyContact.phone'). Empty when there are none.
+  /// (e.g. 'email'). Empty when there are none.
   final Map<String, String> fields;
 
   ApiException({required this.statusCode, required this.message, this.fields = const {}});

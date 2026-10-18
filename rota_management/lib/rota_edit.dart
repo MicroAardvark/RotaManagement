@@ -43,40 +43,16 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
   DateTime? _weekStatusFor;
   bool _isPublishing = false;
 
-  // Kept in lock-step so the fixed name column and the scrollable
-  // timeline scroll together vertically.
-  final ScrollController _nameVController = ScrollController();
-  final ScrollController _gridVController = ScrollController();
-  bool _isSyncingScroll = false;
-
-  
-
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
-    _nameVController.addListener(() => _syncScroll(_nameVController, _gridVController));
-    _gridVController.addListener(() => _syncScroll(_gridVController, _nameVController));
     _loadRota();
-  }
-
-  @override
-  void dispose() {
-    _nameVController.dispose();
-    _gridVController.dispose();
-    super.dispose();
-  }
-
-  void _syncScroll(ScrollController source, ScrollController target) {
-    if (_isSyncingScroll || !target.hasClients) return;
-    _isSyncingScroll = true;
-    target.jumpTo(source.offset);
-    _isSyncingScroll = false;
   }
 
   DateTime _dayKey(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
-    /// Measures the widest employee name and returns a label column width
+  /// Measures the widest employee name and returns a label column width
   /// that comfortably fits it, including avatar + padding, clamped to
   /// a sensible min/max so it never gets absurdly narrow or wide.
   double _calculateLabelWidth(BuildContext context, List<Employee> employees) {
@@ -292,9 +268,15 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
 
     final day = _selectedDay ?? DateTime.now();
 
+    // One scrolling list for the whole page, so the calendar, publish
+    // bar, timetable and every staff row can all be scrolled to, and
+    // pull-to-refresh works.
     return RefreshIndicator(
       onRefresh: _loadRota,
-      child: Column(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        // Room for the floating "Add shift" button under the last row
+        padding: const EdgeInsets.only(bottom: 88),
         children: [
           TableCalendar<Shift>(
             firstDay: DateTime.now().subtract(const Duration(days: 90)),
@@ -304,6 +286,8 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
             calendarFormat: CalendarFormat.week,
             availableCalendarFormats: const {CalendarFormat.week: 'Week'},
             eventLoader: _shiftsForDay,
+            // Vertical drags scroll the page rather than the calendar
+            availableGestures: AvailableGestures.horizontalSwipe,
             onDaySelected: (selectedDay, focusedDay) {
               setState(() {
                 _selectedDay = selectedDay;
@@ -321,7 +305,7 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
           ),
           _buildPublishBar(),
           const Divider(height: 1),
-          Expanded(child: _buildHourlyTimetable(day)),
+          _buildHourlyTimetable(day),
         ],
       ),
     );
@@ -371,10 +355,14 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
   /// (fixed column), hours running along the top, each employee's row
   /// showing their shift(s) as horizontally-positioned blocks. Hour
   /// column width is calculated from the available screen width so the
-  /// grid always fills the space, rather than scrolling.
+  /// grid always fills the space. It's laid out at full height and
+  /// scrolls with the rest of the page.
   Widget _buildHourlyTimetable(DateTime day) {
     if (_employees.isEmpty) {
-      return const Center(child: Text('No employees found for your company'));
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(child: Text('No employees found for your company')),
+      );
     }
 
     final dayShifts = _shiftsForDay(day);
@@ -384,7 +372,6 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
     }
 
     final totalHours = _endHour - _startHour;
-    final bodyHeight = _employees.length * _rowHeight;
     final labelWidth = _calculateLabelWidth(context, _employees);
 
     return LayoutBuilder(
@@ -406,15 +393,7 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
                       border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
                     ),
                   ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: _nameVController,
-                      physics: const ClampingScrollPhysics(),
-                      child: Column(
-                        children: _employees.map((e) => _buildNameCell(e)).toList(),
-                      ),
-                    ),
-                  ),
+                  ..._employees.map(_buildNameCell),
                 ],
               ),
             ),
@@ -425,23 +404,12 @@ class _RotaEditScreenState extends State<RotaEditScreen> {
               child: Column(
                 children: [
                   _buildHourHeader(totalHours, hourWidth),
-                  SizedBox(
-                    height: bodyHeight,
-                    child: SingleChildScrollView(
-                      controller: _gridVController,
-                      physics: const ClampingScrollPhysics(),
-                      child: Column(
-                        children: _employees
-                            .map((e) => _buildEmployeeRow(
-                                  e,
-                                  shiftsByEmployee[e.id] ?? [],
-                                  totalHours,
-                                  hourWidth,
-                                ))
-                            .toList(),
-                      ),
-                    ),
-                  ),
+                  ..._employees.map((e) => _buildEmployeeRow(
+                        e,
+                        shiftsByEmployee[e.id] ?? [],
+                        totalHours,
+                        hourWidth,
+                      )),
                 ],
               ),
             ),
