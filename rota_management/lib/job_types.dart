@@ -4,8 +4,7 @@ import 'services/api_service.dart';
 import 'widgets/app_top_bar.dart';
 import 'widgets/job_type_sheet.dart';
 
-/// Manager-only list of the company's job types. Each job type sets how
-/// long its shifts last.
+/// Manager-only list of the company's job types.
 class JobTypesScreen extends StatefulWidget {
   const JobTypesScreen({super.key});
 
@@ -165,7 +164,6 @@ class _JobTypesScreenState extends State<JobTypesScreen> {
         return ListTile(
           leading: const Icon(Icons.work_outline),
           title: Text(jobType.name),
-          subtitle: Text(formatMinutes(jobType.lengthMinutes)),
           onTap: () => _openSheet(jobType: jobType),
           trailing: IconButton(
             icon: const Icon(Icons.delete_outline),

@@ -38,33 +38,11 @@ class _RotaScreenState extends State<RotaScreen> {
   // Shifts grouped by calendar day, for fast lookup by TableCalendar
   Map<DateTime, List<Shift>> _shiftsByDay = {};
 
-  // Kept in lock-step so the fixed name column and the scrollable
-  // timeline scroll together vertically.
-  final ScrollController _nameVController = ScrollController();
-  final ScrollController _gridVController = ScrollController();
-  bool _isSyncingScroll = false;
-
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
-    _nameVController.addListener(() => _syncScroll(_nameVController, _gridVController));
-    _gridVController.addListener(() => _syncScroll(_gridVController, _nameVController));
     _loadRota();
-  }
-
-  @override
-  void dispose() {
-    _nameVController.dispose();
-    _gridVController.dispose();
-    super.dispose();
-  }
-
-  void _syncScroll(ScrollController source, ScrollController target) {
-    if (_isSyncingScroll || !target.hasClients) return;
-    _isSyncingScroll = true;
-    target.jumpTo(source.offset);
-    _isSyncingScroll = false;
   }
 
   DateTime _dayKey(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
@@ -143,9 +121,14 @@ class _RotaScreenState extends State<RotaScreen> {
       );
     }
 
+    // One scrolling list for the whole page, so the calendar, the
+    // timetable and every staff row can all be scrolled to, and
+    // pull-to-refresh works.
     return RefreshIndicator(
       onRefresh: _loadRota,
-      child: Column(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
           TableCalendar<Shift>(
             firstDay: DateTime.now().subtract(const Duration(days: 90)),
@@ -158,6 +141,8 @@ class _RotaScreenState extends State<RotaScreen> {
               CalendarFormat.month: 'Month',
             },
             eventLoader: _shiftsForDay,
+            // Vertical drags scroll the page rather than resizing the calendar
+            availableGestures: AvailableGestures.horizontalSwipe,
             onFormatChanged: (format) {
               setState(() => _calendarFormat = format);
             },
@@ -177,7 +162,7 @@ class _RotaScreenState extends State<RotaScreen> {
             ),
           ),
           const Divider(height: 1),
-          Expanded(child: _buildDayShiftList()),
+          _buildDayShiftList(),
         ],
       ),
     );
@@ -223,7 +208,10 @@ class _RotaScreenState extends State<RotaScreen> {
   /// screen, but read-only — no add-shift entry points.
   Widget _buildHourlyTimetable(DateTime day) {
     if (_employees.isEmpty) {
-      return const Center(child: Text('No employees found for your company'));
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(child: Text('No employees found for your company')),
+      );
     }
 
     final dayShifts = _shiftsForDay(day);
@@ -233,7 +221,6 @@ class _RotaScreenState extends State<RotaScreen> {
     }
 
     final totalHours = _endHour - _startHour;
-    final bodyHeight = _employees.length * _rowHeight;
     final labelWidth = _calculateLabelWidth(context, _employees);
 
     return LayoutBuilder(
@@ -255,15 +242,7 @@ class _RotaScreenState extends State<RotaScreen> {
                       border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
                     ),
                   ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: _nameVController,
-                      physics: const ClampingScrollPhysics(),
-                      child: Column(
-                        children: _employees.map((e) => _buildNameCell(e)).toList(),
-                      ),
-                    ),
-                  ),
+                  ..._employees.map(_buildNameCell),
                 ],
               ),
             ),
@@ -274,23 +253,12 @@ class _RotaScreenState extends State<RotaScreen> {
               child: Column(
                 children: [
                   _buildHourHeader(totalHours, hourWidth),
-                  SizedBox(
-                    height: bodyHeight,
-                    child: SingleChildScrollView(
-                      controller: _gridVController,
-                      physics: const ClampingScrollPhysics(),
-                      child: Column(
-                        children: _employees
-                            .map((e) => _buildEmployeeRow(
-                                  e,
-                                  shiftsByEmployee[e.id] ?? [],
-                                  totalHours,
-                                  hourWidth,
-                                ))
-                            .toList(),
-                      ),
-                    ),
-                  ),
+                  ..._employees.map((e) => _buildEmployeeRow(
+                        e,
+                        shiftsByEmployee[e.id] ?? [],
+                        totalHours,
+                        hourWidth,
+                      )),
                 ],
               ),
             ),
@@ -441,47 +409,46 @@ class _RotaScreenState extends State<RotaScreen> {
     );
   }
 
-  /// Non-manager view: unchanged - a simple list of the caller's own
-  /// shift(s) on the selected day.
+  /// Non-manager view: a simple list of the caller's own shift(s) on
+  /// the selected day. Not scrollable itself; the page list scrolls.
   Widget _buildEmployeeDayView(DateTime day) {
     final dayShifts = _shiftsForDay(day);
 
     if (dayShifts.isEmpty) {
-      return ListView(
-        children: [
-          const SizedBox(height: 60),
-          Center(
-            child: Text(
-              'No shifts on ${DateFormat('EEEE d MMMM').format(day)}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+          child: Text(
+            'No shifts on ${DateFormat('EEEE d MMMM').format(day)}',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-        ],
+        ),
       );
     }
 
-    return ListView.builder(
+    return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: dayShifts.length,
-      itemBuilder: (context, index) {
-        final shift = dayShifts[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: InkWell(
-            onTap: () => showShiftDetails(context, shift),
-            child: ListTile(
-              leading: const Icon(Icons.schedule_outlined),
-              title: Text(shift.role.isNotEmpty ? shift.role : 'Shift'),
-              subtitle: Text(
-                '${DateFormat('HH:mm').format(shift.startTime)} – '
-                '${DateFormat('HH:mm').format(shift.endTime)}\n'
-                '${shift.role}\n${shift.clientName}\n'
-                '${shift.clientFullAddress.isNotEmpty ? ', ${shift.clientFullAddress}' : ''}',
+      child: Column(
+        children: [
+          for (final shift in dayShifts)
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: InkWell(
+                onTap: () => showShiftDetails(context, shift),
+                child: ListTile(
+                  leading: const Icon(Icons.schedule_outlined),
+                  title: Text(shift.role.isNotEmpty ? shift.role : 'Shift'),
+                  subtitle: Text(
+                    '${DateFormat('HH:mm').format(shift.startTime)} – '
+                    '${DateFormat('HH:mm').format(shift.endTime)}\n'
+                    '${shift.role}\n${shift.clientName}\n'
+                    '${shift.clientFullAddress.isNotEmpty ? ', ${shift.clientFullAddress}' : ''}',
+                  ),
+                ),
               ),
             ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

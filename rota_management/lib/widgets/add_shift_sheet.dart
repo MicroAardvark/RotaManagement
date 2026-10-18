@@ -33,10 +33,8 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   late DateTime _shiftDate;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
 
-  /// The finish time. Filled in from the job type's length until the
-  /// manager picks one themselves ([_endTimeChosen]).
+  /// The finish time, set by the manager. Null until they choose one.
   TimeOfDay? _endTime;
-  bool _endTimeChosen = false;
   JobType? _selectedJobType;
   Client? _selectedClient;
   final _notesController = TextEditingController();
@@ -65,9 +63,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       final start = existing.startTime;
       _shiftDate = DateTime(start.year, start.month, start.day);
       _startTime = TimeOfDay.fromDateTime(start);
-      // Keep the shift's own finish time, which may differ from the job type
       _endTime = TimeOfDay.fromDateTime(existing.endTime);
-      _endTimeChosen = true;
       _notesController.text = existing.notes;
 
       // Null if the employee has since been deactivated; the manager
@@ -156,14 +152,6 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
     return TimeOfDay(hour: total ~/ 60, minute: total % 60);
   }
 
-  /// Fills the finish time from the job type, unless the manager has
-  /// already chosen one.
-  void _applyJobTypeLength() {
-    final jobType = _selectedJobType;
-    if (jobType == null || _endTimeChosen) return;
-    _endTime = _addMinutes(_startTime, jobType.lengthMinutes);
-  }
-
   /// Shift length in minutes, or null when the finish isn't after the start.
   int? get _durationMinutes {
     final end = _endTime;
@@ -209,11 +197,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       // Moving the start keeps the shift the same length
       final length = _durationMinutes;
       _startTime = picked;
-      if (_endTimeChosen && length != null) {
-        _endTime = _addMinutes(picked, length);
-      } else {
-        _applyJobTypeLength();
-      }
+      if (length != null) _endTime = _addMinutes(picked, length);
     });
   }
 
@@ -224,17 +208,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       helpText: 'Finish time',
     );
     if (picked == null) return;
-    setState(() {
-      _endTime = picked;
-      _endTimeChosen = true;
-    });
-  }
-
-  void _resetEndTimeToJobType() {
-    setState(() {
-      _endTimeChosen = false;
-      _applyJobTypeLength();
-    });
+    setState(() => _endTime = picked);
   }
 
   Future<void> _submit() async {
@@ -311,9 +285,6 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   Widget build(BuildContext context) {
     final endTime = _endTime;
     final duration = _durationMinutes;
-    final jobType = _selectedJobType;
-    final differsFromJobType =
-        jobType != null && duration != null && duration != jobType.lengthMinutes;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -364,7 +335,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
               title: const Text('Finish time'),
               subtitle: Text(
                 endTime == null
-                    ? 'Choose a job type or set a time'
+                    ? 'Tap to set a finish time'
                     : duration == null
                         ? '${endTime.format(context)} (must be after the start)'
                         : '${endTime.format(context)} (${_formatDuration(duration)})',
@@ -375,14 +346,6 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
               trailing: const Icon(Icons.schedule_outlined),
               onTap: _pickEndTime,
             ),
-            if (differsFromJobType && jobType != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: _resetEndTimeToJobType,
-                  child: Text('Use ${jobType.name} length (${_formatDuration(jobType.lengthMinutes)})'),
-                ),
-              ),
             const SizedBox(height: 12),
             TextField(
               controller: _notesController,
@@ -539,13 +502,10 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       items: _jobTypes
           .map((jt) => DropdownMenuItem(
                 value: jt,
-                child: Text('${jt.name} (${jt.lengthMinutes} min)'),
+                child: Text(jt.name),
               ))
           .toList(),
-      onChanged: (value) => setState(() {
-        _selectedJobType = value;
-        _applyJobTypeLength();
-      }),
+      onChanged: (value) => setState(() => _selectedJobType = value),
     );
   }
 }

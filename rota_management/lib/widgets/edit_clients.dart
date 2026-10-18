@@ -85,14 +85,6 @@ class _EditClientSheetState extends State<EditClientSheet> {
       setState(() => _errorMessage = 'Please enter a postcode');
       return;
     }
-    if (phone.isEmpty) {
-      setState(() => _errorMessage = 'Please enter a phone number');
-      return;
-    }
-    if (email.isEmpty) {
-      setState(() => _errorMessage = 'Please enter an email address');
-      return;
-    }
 
     setState(() {
       _isSaving = true;
@@ -188,13 +180,13 @@ class _EditClientSheetState extends State<EditClientSheet> {
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone'),
+              decoration: const InputDecoration(labelText: 'Phone (optional)'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: const InputDecoration(labelText: 'Email (optional)'),
             ),
             const SizedBox(height: 12),
             TextField(
