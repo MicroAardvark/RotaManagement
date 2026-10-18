@@ -1,10 +1,36 @@
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
+import 'services/session_store.dart';
 import 'widgets/app_top_bar.dart';
 import 'widgets/change_password_sheet.dart';
+import 'widgets/report_issue_sheet.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // After a page refresh the user may not be loaded yet; this fills
+    // SessionStore, which the list below listens to.
+    if (SessionStore.instance.user == null) {
+      ApiService.getMe().catchError((_) => null);
+    }
+  }
+
+  Future<void> _openReportIssue(BuildContext context) async {
+    final sent = await showReportIssueSheet(context);
+    if (sent == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thanks, your report has been sent.')),
+      );
+    }
+  }
 
   Future<void> _openChangePassword(BuildContext context) async {
     final changed = await showChangePasswordSheet(context);
@@ -50,29 +76,38 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final errorColour = Theme.of(context).colorScheme.error;
+
     return Scaffold(
       appBar: const AppTopBar(activeItem: 'Settings'),
-      body: ListView(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.lock_outline),
-            title: const Text('Change password'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openChangePassword(context),
-          ),
-          const Divider(),
-          ListTile(
-            leading: Icon(
-              Icons.logout,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            title: Text(
-              'Log out',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-            onTap: () => _confirmLogOut(context),
-          ),
-        ],
+      body: ListenableBuilder(
+        listenable: SessionStore.instance,
+        builder: (context, _) {
+          final isManager = SessionStore.instance.user?.isManager ?? false;
+          return ListView(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Change password'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openChangePassword(context),
+              ),
+              if (isManager)
+                ListTile(
+                  leading: const Icon(Icons.bug_report_outlined),
+                  title: const Text('Report a bug / request a feature'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openReportIssue(context),
+                ),
+              const Divider(),
+              ListTile(
+                leading: Icon(Icons.logout, color: errorColour),
+                title: Text('Log out', style: TextStyle(color: errorColour)),
+                onTap: () => _confirmLogOut(context),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
