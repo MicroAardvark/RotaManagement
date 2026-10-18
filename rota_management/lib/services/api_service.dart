@@ -237,6 +237,13 @@ class ApiService {
     );
   }
 
+  /// Manager-only: emails a bug report or feature request to the
+  /// app's support address. [priority] is 'high', 'medium' or 'low'.
+  static Future<void> sendFeedback({required String priority, required String details}) async {
+    await _json('POST', '/api/feedback', 'Failed to send your report',
+        body: {'priority': priority, 'details': details});
+  }
+
   static Future<void> requestPasswordReset(String email) async {
     await _json('POST', '/api/auth/forgot-password', 'Failed to send the reset link',
         body: {'email': email});
