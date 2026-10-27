@@ -9,6 +9,8 @@ import '../models/employee_model.dart';
 import '../models/job_type_model.dart';
 import '../models/shift_model.dart';
 import '../models/staff_details.dart';
+import '../demo/demo_backend.dart';
+import '../demo/demo_mode.dart';
 import '../navigation.dart';
 import 'http_client.dart';
 import 'session_store.dart';
@@ -47,7 +49,10 @@ class ApiService {
   /// The session lives in an httpOnly cookie the server sets, so this
   /// app never sees or stores the token. On web this client sends the
   /// cookie with every request.
-  static final http.Client _client = createHttpClient();
+  ///
+  /// Demo builds (--dart-define=DEMO=true) send every request to an
+  /// in-memory fake of the API instead, so nothing leaves the browser.
+  static final http.Client _client = isDemo ? DemoBackend().client : createHttpClient();
 
   /// Every request carries this header; the server refuses cookie
   /// requests that change data without it (CSRF protection).
@@ -155,6 +160,7 @@ class ApiService {
       value is List ? value.whereType<Map<String, dynamic>>().toList() : [];
 
   static Future<void> _clearLegacyToken() async {
+    if (isDemo) return; // the demo never stored a token
     try {
       await _legacyStorage.delete(key: 'jwt_token');
       await _legacyStorage.delete(key: 'user_role');
