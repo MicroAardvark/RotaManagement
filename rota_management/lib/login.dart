@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'demo/demo_mode.dart';
+import 'demo/demo_widgets.dart';
 import 'services/api_service.dart';
 import 'widgets/forgot_password_sheet.dart';
 
@@ -78,6 +80,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                   ),
                   const SizedBox(height: 32),
+                  if (isDemo) ...[
+                    const DemoLoginPanel(),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                  ],
                   if (_errorMessage != null) ...[
                     Container(
                       padding: const EdgeInsets.all(12),

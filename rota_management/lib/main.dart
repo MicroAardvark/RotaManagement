@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'clients.dart';
+import 'demo/demo_mode.dart';
+import 'demo/demo_widgets.dart';
 import 'home.dart';
 import 'job_types.dart';
 import 'login.dart';
@@ -22,8 +24,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Rota Manager',
+      title: isDemo ? 'Rota Manager (demo)' : 'Rota Manager',
       navigatorKey: navigatorKey,
+      builder: isDemo
+          ? (context, child) => DemoBanner(child: child ?? const SizedBox.shrink())
+          : null,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
@@ -107,8 +112,9 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+          // Scrolls on short screens, e.g. with the demo panel showing
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
@@ -147,6 +153,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: const Text('Log In', style: TextStyle(fontSize: 16)),
                   ),
                 ),
+                if (isDemo) ...[
+                  const SizedBox(height: 32),
+                  const DemoLoginPanel(),
+                ],
               ],
             ),
           ),
